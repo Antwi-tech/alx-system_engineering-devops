@@ -3,7 +3,7 @@
 # Correct character mappings
 WATER_BASE="water"
 STIR_BASE="stir"
-BESTCHOL_BASE="shtbeolc"  # <- correct mapping
+BESTCHOL_BASE="shtbeolc"
 
 to_decimal() {
     local input="$1"
