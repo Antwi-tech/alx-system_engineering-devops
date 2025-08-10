@@ -1,0 +1,58 @@
+### Overview
+
+This design scales up the web infrastructure for **[www.foobar.com](http://www.foobar.com)** by adding redundancy, splitting components for performance, and improving fault tolerance.
+
+---
+
+### Infrastructure Components
+
+#### 1. Additional Server
+
+* **Purpose:** Expands capacity and enables better load distribution across the system.
+* **Benefit:** Prevents performance bottlenecks during high traffic and provides redundancy.
+
+#### 2. Second Load Balancer (HAProxy Cluster)
+
+* **Purpose:** Works with the first HAProxy in a cluster configuration.
+* **Benefit:** If one load balancer fails, the other continues directing traffic — removing a single point of failure (SPOF).
+* **Setup:** Active–Passive or Active–Active modes possible depending on traffic needs.
+
+#### 3. Split Components
+
+Instead of all services running on the same servers, each component now has its own dedicated server:
+
+* **Web Server (Nginx):** Handles HTTP requests, serves static files, and forwards dynamic requests to the application server.
+* **Application Server:** Runs the business logic and processes requests before interacting with the database.
+* **Database Server (MySQL):** Stores and retrieves data for the application.
+
+**Why this split?**
+
+* Improves scalability — each tier can be scaled independently.
+* Improves performance — specialized servers handle only their own tasks.
+* Improves security — limits access paths to critical resources.
+
+---
+
+### Benefits of This Design
+
+* **Higher Availability:** Two load balancers prevent downtime from LB failure.
+* **Better Performance:** Dedicated servers reduce contention for CPU, RAM, and disk I/O.
+* **Easier Maintenance:** Components can be updated or restarted independently.
+* **Scalability:** Add more web or app servers without affecting the others.
+
+---
+
+### Key Considerations
+
+* **Database Replication:** To avoid a single write-capable MySQL server being a SPOF, set up a Primary–Replica cluster.
+* **Monitoring:** All new servers should be monitored for CPU, memory, QPS, and network latency.
+* **Security:** Ensure firewalls and HTTPS are still enforced in the scaled-up infrastructure.
+
+---
+
+### Diagram
+
+*(Insert your whiteboard diagram showing 2 load balancers in a cluster, dedicated web server(s), application server(s), and database server(s) with network flows.)*
+
+---
+
