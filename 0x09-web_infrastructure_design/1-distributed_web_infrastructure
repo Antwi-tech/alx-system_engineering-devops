@@ -164,5 +164,147 @@ Include:
 * A short checklist showing which requirements are satisfied (server, nginx, app server, files, MySQL, domain→8.8.8.8).
 * Notes on SPOF, downtime, and scaling limitations.
 
+Alright — here’s a **clear, complete work-through** of the *Distributed Web Infrastructure* design for your ALX task, with explanations for each part in English, just like you'd write it in your repo documentation.
+
+---
+
+## **1. Distributed Web Infrastructure Design**
+
+**Scenario:**
+The website **[www.foobar.com](http://www.foobar.com)** needs to handle more users, have better reliability, and scale. To do this, we will move from a **single server setup** to a **three-server distributed infrastructure**.
+
+---
+
+### **Infrastructure Components**
+
+1. **Load Balancer (HAProxy)**
+
+   * **Why:**
+     Distributes incoming user traffic between multiple servers, preventing overloading a single machine and improving uptime.
+   * **Role:**
+     Routes requests to available servers using a configured algorithm.
+   * **Distribution Algorithm:**
+     *Round Robin* — sends each new request to the next server in line, ensuring even load distribution.
+   * **Setup Type:**
+     **Active-Active** — all servers handle requests at the same time, increasing total capacity.
+     *(Difference)*:
+
+     * **Active-Active:** All servers are live and serving traffic simultaneously.
+     * **Active-Passive:** One server handles all traffic while another waits in standby for failover.
+
+---
+
+2. **Web Server (Nginx)**
+
+   * **Why:**
+     Handles HTTP requests, serves static files, and forwards dynamic requests to the application server.
+   * **Role:**
+     Acts as the first stop for user requests, ensuring optimized delivery of static content.
+
+---
+
+3. **Application Server**
+
+   * **Why:**
+     Processes the business logic of the website (Python backend code).
+   * **Role:**
+     Receives requests from the web server, executes code, interacts with the database, and returns dynamic content.
+
+---
+
+4. **Database Cluster (MySQL Primary-Replica)**
+
+   * **Why:**
+     Improves database performance and redundancy.
+   * **How it works:**
+
+     * **Primary Node (Master):** Handles all write and update operations.
+     * **Replica Node (Slave):** Continuously copies (replicates) data from the Primary. Used for read queries to reduce load.
+   * **Application View:**
+
+     * Writes → go to the Primary.
+     * Reads → can be directed to the Replica for efficiency.
+
+---
+
+5. **Application Files (Code Base)**
+
+   * **Why:**
+     The backend logic and features that power the website.
+   * **Role:**
+     Hosted on the application servers, where requests are processed.
+
+---
+
+6. **Domain Name (foobar.com)**
+
+   * **Why:**
+     Human-readable name instead of IP address.
+   * **DNS Record Type:**
+     `www` is a **CNAME** or **A record** pointing to the load balancer’s IP.
+
+---
+
+### **Request Flow**
+
+1. User types **[www.foobar.com](http://www.foobar.com)** in their browser.
+2. DNS resolves the domain to the load balancer’s IP.
+3. Load balancer routes the request to one of the web servers (via Round Robin).
+4. Web server serves static files or forwards dynamic requests to the application server.
+5. Application server interacts with the database if needed.
+6. Response is returned to the web server → load balancer → user’s browser.
+
+---
+
+### **Potential Issues**
+
+1. **Single Point of Failure (SPOF):**
+
+   * Load balancer failure will bring down the entire system.
+   * Primary database failure (without failover) will stop all write operations.
+
+2. **Security Issues:**
+
+   * No firewall to filter malicious traffic.
+   * No HTTPS — data can be intercepted.
+
+3. **No Monitoring:**
+
+   * No visibility into server health or traffic patterns.
+   * Can’t detect failures or performance issues quickly.
+
+---
+
+### **Diagram (Whiteboard Sketch Idea)**
+
+```
+           [ Users ]
+              |
+              v
+       +----------------+
+       |  Load Balancer |
+       |   (HAProxy)    |
+       +----------------+
+          /          \
+         v            v
++---------------+  +---------------+
+|   Web Server  |  |   Web Server  |
+|    (Nginx)    |  |    (Nginx)    |
++---------------+  +---------------+
+      |                 |
+      v                 v
++---------------+  +---------------+
+| Application   |  | Application   |
+| Server (Code) |  | Server (Code) |
++---------------+  +---------------+
+         \            /
+          \          /
+           v        v
+       +---------------------+
+       |   MySQL Database    |
+       | Primary   Replica   |
+       +---------------------+
+```
+
 ---
 
