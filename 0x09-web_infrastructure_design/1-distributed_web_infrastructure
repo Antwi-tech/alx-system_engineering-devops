@@ -1,0 +1,168 @@
+# One-Server Web Infrastructure — whiteboard design for **[www.foobar.com](http://www.foobar.com)**
+
+**User story (start here):**
+A user opens their browser, types **[www.foobar.com](http://www.foobar.com)**, and presses Enter. Their browser resolves the domain to an IP address, connects to the server, requests a web page, and receives HTML/CSS/JS rendered in the browser.
+
+---
+
+# Simple diagram (whiteboard style)
+
+```
++----------------------+         Internet         +----------------------+
+|  User's Browser      |  <---HTTP/HTTPS over-->  |   Public IP: 8.8.8.8 |
+|  (client machine)    |         TCP/IP           |  Single physical VM  |
++----------------------+                          |  or cloud instance   |
+                                                 |                      |
+                                                 | +------------------+ |
+                                                 | |  Nginx (web     | |
+                                                 | |  server)        | |
+                                                 | +------------------+ |
+                                                 |          |           |
+                                                 |          v           |
+                                                 | +------------------+ |
+                                                 | | Application      | |
+                                                 | | Server (uWSGI /  | |
+                                                 | | Gunicorn / PHP-  | |
+                                                 | | FPM)             | |
+                                                 | +------------------+ |
+                                                 |          |           |
+                                                 |          v           |
+                                                 | +------------------+ |
+                                                 | | MySQL Database   | |
+                                                 | | (local socket /  | |
+                                                 | | 127.0.0.1:3306)  | |
+                                                 | +------------------+ |
+                                                 +----------------------+
+```
+
+---
+
+# How the pieces map to your requirements
+
+* **1 server**: a single machine (physical server or VM/container) with public IP **8.8.8.8**.
+* **1 web server (Nginx)**: handles incoming HTTP(S) requests, static assets, TLS termination, reverse-proxying to the application server.
+* **1 application server**: process that runs your application logic (e.g., Python app via Gunicorn/uWSGI, or PHP with PHP-FPM). Nginx forwards dynamic requests here.
+* **1 application files (your code base)**: your site code (templates, handlers, static files), deployed on the same server (e.g., `/var/www/foobar`).
+* **1 database (MySQL)**: stores persistent data; runs locally on the same machine (e.g., `mysqld` listening on `127.0.0.1:3306` or a Unix socket).
+* **1 domain name**: `foobar.com` with a **www** record that resolves `www.foobar.com → 8.8.8.8`.
+
+---
+
+# Key technical explanations
+
+**What is a server?**
+A server is a computer (physical or virtual) that provides services to clients over a network. In this design the server hosts the web server, application server, database, and application files.
+
+**What is the role of the domain name?**
+A domain name (foobar.com) is a human-friendly identifier. DNS resolves `www.foobar.com` to the server’s IP (8.8.8.8), allowing the browser to find and connect to the server.
+
+**What type of DNS record is `www` in `www.foobar.com`?**
+Typically an **A record** (Address record) — it maps the hostname `www.foobar.com` to the IPv4 address `8.8.8.8`. (If pointing to another name, you could use a CNAME instead; but for a public IP you use A.)
+
+**What is the role of the web server (Nginx)?**
+
+* Accepts HTTP/S requests from clients.
+* Serves static files (images, CSS, JS) directly and efficiently.
+* Terminates TLS (HTTPS) if configured.
+* Reverse proxies dynamic requests to the application server.
+* Manages connection timeouts, buffering, caching, gzip, and request routing.
+
+**What is the role of the application server?**
+
+* Runs your application code (business logic, routing, templating, DB access).
+* Processes dynamic requests, interacts with the database, and returns generated responses to Nginx.
+* Examples: Gunicorn/uWSGI for Python, PHP-FPM for PHP, Node.js process for JS apps.
+
+**What is the role of the database (MySQL)?**
+
+* Persistent storage for data (users, posts, transactions, configuration).
+* Receives SQL queries from the application server and returns results.
+* Ensures ACID properties (to the extent configured) for data integrity.
+
+**How does the server communicate with the user's computer?**
+
+* Over the Internet using the **TCP/IP stack**. Specifically: DNS resolution (UDP/TCP) → DNS returns IP → client connects using **TCP** to port 80 (HTTP) or 443 (HTTPS). HTTP or HTTPS protocol carries requests and responses. TLS is used for encryption when HTTPS is enabled.
+
+---
+
+# Example DNS configuration (conceptual)
+
+```
+foobar.com.      A    8.8.8.8
+www.foobar.com.  A    8.8.8.8
+```
+
+(Alternatively `www` could be a CNAME to `foobar.com`.)
+
+---
+
+# Example minimal Nginx reverse proxy snippet
+
+```nginx
+server {
+    listen 80;
+    server_name www.foobar.com foobar.com;
+
+    root /var/www/foobar/static;
+    index index.html index.htm;
+
+    location /static/ {
+        try_files $uri =404;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;   # application server
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+```
+
+---
+
+# Common issues & limitations of this one-server setup
+
+1. **Single Point of Failure (SPOF)**
+
+   * If the server goes down (hardware failure, kernel panic, host maintenance), the entire site becomes unreachable. There is no redundancy.
+
+2. **Downtime during maintenance / deployments**
+
+   * Deploying new code, upgrading services, or restarting Nginx/DB can cause downtime unless you use careful strategies (rolling restarts, blue/green deploys). With one server, you can’t take one machine out of service while another handles traffic.
+
+3. **Scalability limitations**
+
+   * CPU, memory, disk I/O, and network bandwidth are limited by the single machine. Under high traffic you cannot easily scale horizontally (add more servers) without re-architecting and moving to multi-server deployment.
+
+4. **Security surface**
+
+   * Running all services on one machine increases blast radius if compromised. Best practice is network segmentation, least privilege, and hardened configurations.
+
+5. **Performance contention**
+
+   * Database, application, and web processes compete for resources; a heavy DB query can slow response latency for web requests.
+
+---
+
+# Simple mitigations / next steps (if you need to improve)
+
+* Add a second server + load balancer for redundancy and scaling.
+* Move DB to a managed/replicated instance (or a separate DB server).
+* Use HTTPS with proper TLS certs (Let's Encrypt).
+* Use process managers (systemd / supervisor) and a deployment strategy (CI/CD, zero-downtime deploys).
+* Enable monitoring and automated backups.
+
+---
+
+# What to include in your repo file `0-simple_web_stack` (suggested README content)
+
+Include:
+
+* The ASCII diagram above.
+* Nginx snippet and explanation of DNS A record.
+* A short checklist showing which requirements are satisfied (server, nginx, app server, files, MySQL, domain→8.8.8.8).
+* Notes on SPOF, downtime, and scaling limitations.
+
+---
+
