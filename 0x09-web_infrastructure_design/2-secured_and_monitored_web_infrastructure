@@ -1,0 +1,64 @@
+## **Secured and Monitored Web Infrastructure Design – `www.foobar.com`**
+
+### **Infrastructure Diagram (Whiteboard Concept)**
+
+* **3 Servers**
+
+  * **Server 1**: Nginx Web Server + Application Server
+  * **Server 2**: Nginx Web Server + Application Server
+  * **Server 3**: MySQL Database (Primary + Replica if needed)
+* **Load Balancer (HAProxy)** between users and web servers
+* **Firewalls** in front of each server
+* **SSL Certificate** installed for HTTPS traffic
+* **Monitoring Clients** on all servers sending logs & metrics to a central monitoring service
+
+---
+
+## **Flow of a Request**
+
+1. **User** types `https://www.foobar.com` in the browser.
+2. **DNS** resolves `www.foobar.com` to the load balancer’s public IP.
+3. **Firewall 1** (before the load balancer) checks allowed ports (443 for HTTPS).
+4. **Load Balancer (HAProxy)** receives the encrypted request (HTTPS).
+5. **HAProxy** forwards traffic to one of the web servers using a distribution algorithm (e.g., Round Robin).
+6. **Web Server (Nginx)** serves static files or forwards dynamic requests to the Application Server.
+7. **Application Server** processes business logic, communicates with the **Database Server** via secure connections.
+8. **Database** returns results, which are sent back to the client over the same secure HTTPS connection.
+9. **Monitoring Clients** send logs, QPS data, and performance metrics to a monitoring service (e.g., Sumologic).
+
+---
+
+## **Why Each Element Is Added**
+
+* **3 Firewalls** – One for each server to control incoming/outgoing traffic and prevent unauthorized access.
+* **SSL Certificate** – Ensures encrypted communication between the client and server to protect data.
+* **3 Monitoring Clients** – Track server health, traffic, and errors in real time for proactive issue resolution.
+
+---
+
+## **Specifics**
+
+* **Firewalls**: Block all non-essential traffic; only allow HTTP(S) and DB connections from trusted sources.
+* **HTTPS**: Protects data from interception and tampering using SSL/TLS encryption.
+* **Monitoring**: Detects downtime, unusual activity, and performance bottlenecks.
+* **Data Collection**: Agents collect logs, QPS, CPU/memory usage, and send to monitoring backend.
+* **Monitoring QPS**: Configure a log parser or API call to track “queries per second” metric from the web server logs.
+
+---
+
+## **Issues with This Infrastructure**
+
+* **SSL Termination at Load Balancer**: If decryption happens at the load balancer, internal traffic is unencrypted unless re-encrypted, creating a security gap.
+* **Single MySQL Write Node**: If the primary database fails, writes can’t be processed until failover is completed.
+* **Identical Server Components**: If all servers run all components, security breaches or misconfigurations can propagate faster, and performance tuning is harder.
+
+---
+
+### **Repo & File**
+
+* **Repository**: `alx-system_engineering-devops`
+* **Directory**: `0x09-web_infrastructure_design`
+* **File**: `2-secured_and_monitored_web_infrastructure`
+
+---
+
